@@ -38,6 +38,14 @@ function normalizeMobile(mobile) {
   mobile = String(mobile);
   return mobile.startsWith('0') ? mobile : '0' + mobile;
 }
+// Utility: Debounce to throttle high-frequency events (e.g., input)
+function debounce(fn, delay = 180) {
+  let t;
+  return function(...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(null, args), delay);
+  }
+}
 // Utility: Consistent notification feedback
 function showNotification(message, type = 'info', duration = 3000) {
   let notif = document.getElementById('app-notification');
@@ -534,7 +542,7 @@ async function checkAdminSession() {
 document.addEventListener("DOMContentLoaded", () => {
   // Loader/modal UI boot
   showLoader();
-  checkAdminSession();
+  checkAdminSession().finally(loadInitialData);
 
   // Attach (delegated) event handling for modals and global UI
   document.body.addEventListener('click', function(e) {
@@ -572,7 +580,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if ($('#modal-backdrop')) $('#modal-backdrop').classList.add('hidden');
 
   // Attach loader UI
-  hideLoader();
+  // Loader is managed inside loadInitialData(); removed early hide to prevent flicker.
   // Initialize AOS if available (added in index.html)
   try {
     if (window.AOS) {
@@ -588,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   } catch (e) { /* no-op */ }
-  loadInitialData();
+  // loadInitialData is invoked after checkAdminSession completes above
   setupAllEventListeners();
   
   // Initialize enhanced card interactions after data loads
@@ -1253,10 +1261,11 @@ function setupGlobalSearch() {
       suggestionsBox.style.display = 'block';
     }
   }
-  globalSearch.addEventListener('input', function () {
-    lastQuery = this.value.trim().toLowerCase();
+  const onGlobalInput = debounce(function (ev) {
+    lastQuery = (ev.target.value || '').trim().toLowerCase();
     doGlobalSearch(lastQuery);
-  });
+  }, 180);
+  globalSearch.addEventListener('input', onGlobalInput);
   suggestionsBox.addEventListener('mousedown', function (e) {
     const item = e.target.closest('[data-branch][data-name]');
     if (item) {
